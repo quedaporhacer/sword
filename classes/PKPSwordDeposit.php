@@ -99,10 +99,80 @@ class PKPSwordDeposit {
 				'family' => $author->getFamilyName($publication->getData('locale')),
 				'given' => $author->getGivenName($publication->getData('locale')),
 				'email' => $author->getEmail(),
+				'orcid' => $author->getOrcid(),
 				'primary_contact' => ($author->getId() === $publication->getData('primaryContactId'))
 			];
 		}
+
+		$doiObject = $publication->getData('doiObject');
+		if ($doiObject) {
+			$this->_package->setIdentifier($doiObject->getDoi());
+		} else {
+			$this->_package->setIdentifier($this->_submission->getId());
+		}
+		
+		$this->_package->setPublisher($this->_context->getLocalizedName());
+		$this->_package->setDateAvailable($publication->getData('datePublished'));
+		$this->_package->setLanguage($publication->getData('locale'));
+		
+		$currentLocale = $this->_context->getPrimaryLocale();
+		$keywordsAllLanguages = $publication->getData('keywords');
+
+		// Verificamos si existen keywords para el idioma actual
+		if (!empty($keywordsAllLanguages[$currentLocale])) {
+			foreach ($keywordsAllLanguages[$currentLocale] as $keyword) {
+				$this->_package->addSubject($keyword);
+			}
+		}
+
+		// Add rights statement
+		$licenseUrl = $publication->getData('licenseUrl') 
+           ?: $this->_context->getData('licenseUrl');
+		if ($licenseUrl) {
+			$this->_package->addRights($licenseUrl);
+		}
+
+		$copyrightHolder = $publication->getLocalizedData('copyrightHolder');
+		if ($copyrightHolder) {
+			$this->_package->setCopyrightHolder($copyrightHolder);
+		}
+
+		$this->_package->addProvenance(
+			'Deposited from OJS ' . $this->_context->getLocalizedName() 
+			. ' on ' . date('Y-m-d')
+		);
+
+		$status = $this->_submission->getStatus() ?? 'Unknown';
+		$this->_package->setStatusStatement($status);
+
+
+		// Resolver el issue de la publicación
+		$issueId = $publication->getData('issueId');
+		$issue = $issueId ? Repo::issue()->get($issueId) : null;
+		$citation = $this->_context->getLocalizedName();
+		if ($issue) {
+			if ($issue->getVolume()) {
+				$citation .= ', Vol. ' . $issue->getVolume();
+			}
+			if ($issue->getNumber()) {
+				$citation .= ' No. ' . $issue->getNumber();
+			}
+			if ($issue->getYear()) {
+				$citation .= ' (' . $issue->getYear() . ')';
+			}
+		}
+		$pages = $publication->getData('pages');
+		if ($pages) {
+			$citation .= ', pp. ' . $pages;
+		}
+		$doiObject = $publication->getData('doiObject');
+		if ($doiObject) {
+			$citation .= '. https://doi.org/' . $doiObject->getDoi();
+		}
+		$this->_package->setCitation($citation);
+
 	}
+
 
 	/**
 	 * Add a file to a package. Used internally.
