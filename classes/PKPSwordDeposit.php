@@ -83,93 +83,135 @@ class PKPSwordDeposit {
 	/**
 	 * Register the article's metadata with the SWORD deposit.
 	 * @param $request PKPRequest
+	 * @param $sac_identifier bool
 	 */
-	public function setMetadata($request) {
+	public function setMetadata($request,$swordPlugin = null) {
 		$publication = $this->_submission->getCurrentPublication();
-		$this->_package->setCustodian($this->_context->getContactName());
-		$this->_package->setTitle(html_entity_decode($publication->getLocalizedTitle(), ENT_QUOTES, 'UTF-8'));
-		$this->_package->setAbstract(html_entity_decode(strip_tags($publication->getLocalizedData('abstract')), ENT_QUOTES, 'UTF-8'));
-		$this->_package->setType($this->_section->getLocalizedIdentifyType());
+
+		//Quiero acceder antes de cada set a las coniguraaciones del plugin para preguntar por cada sec_ 
+
+		if ($swordPlugin->getSetting($this->_context->getId(), 'sac_custodian')) {
+			$this->_package->setCustodian($this->_context->getContactName());
+		}
+
+		if ($swordPlugin->getSetting($this->_context->getId(), 'sac_title')) {	
+			$this->_package->setTitle(html_entity_decode($publication->getLocalizedTitle(), ENT_QUOTES, 'UTF-8'));
+		}
+
+		if ($swordPlugin->getSetting($this->_context->getId(), 'sac_abstract')) {
+			$this->_package->setAbstract(html_entity_decode(strip_tags($publication->getLocalizedData('abstract')), ENT_QUOTES, 'UTF-8'));
+		}
+
+		if( $swordPlugin->getSetting($this->_context->getId(), 'sac_type')) {
+			$this->_package->setType($this->_section->getLocalizedIdentifyType());
+		}
+
 		foreach ($publication->getData('authors') as $author) {
 			$creator = $author->getFullName(true);
 			$affiliation = $author->getLocalizedAffiliation();
 			if (!empty($affiliation)) $creator .= "; $affiliation";
-			$this->_package->addCreator($creator);
-			$this->_package->sac_name_records[] = [
-				'family' => $author->getFamilyName($publication->getData('locale')),
-				'given' => $author->getGivenName($publication->getData('locale')),
-				'email' => $author->getEmail(),
-				'orcid' => $author->getOrcid(),
-				'primary_contact' => ($author->getId() === $publication->getData('primaryContactId'))
-			];
-		}
 
-		$doiObject = $publication->getData('doiObject');
-		if ($doiObject) {
-			$this->_package->setIdentifier($doiObject->getDoi());
-		} else {
-			$this->_package->setIdentifier($this->_submission->getId());
+			if ($swordPlugin->getSetting($this->_context->getId(), 'sac_creators')) {
+				$this->_package->addCreator($creator);
+			}
+			
+			if( $swordPlugin->getSetting($this->_context->getId(), 'sac_name_records')) {
+				$this->_package->sac_name_records[] = [
+					'family' => $author->getFamilyName($publication->getData('locale')),
+					'given' => $author->getGivenName($publication->getData('locale')),
+					'email' => $author->getEmail(),
+					'orcid' => $author->getOrcid(),
+					'primary_contact' => ($author->getId() === $publication->getData('primaryContactId'))
+				];
+			}
 		}
 		
-		$this->_package->setPublisher($this->_context->getLocalizedName());
-		$this->_package->setDateAvailable($publication->getData('datePublished'));
-		$this->_package->setLanguage($publication->getData('locale'));
-		
-		$currentLocale = $this->_context->getPrimaryLocale();
-		$keywordsAllLanguages = $publication->getData('keywords');
+		if ($swordPlugin->getSetting($this->_context->getId(), 'sac_identifier')) {
+			$doiObject = $publication->getData('doiObject');
+			if ($doiObject) {
+				$this->_package->setIdentifier($doiObject->getDoi());
+			} else {
+				$this->_package->setIdentifier($this->_submission->getId());
+			}
+		}
 
-		// Verificamos si existen keywords para el idioma actual
-		if (!empty($keywordsAllLanguages[$currentLocale])) {
-			foreach ($keywordsAllLanguages[$currentLocale] as $keyword) {
-				$this->_package->addSubject($keyword);
+		if($swordPlugin->getSetting($this->_context->getId(), 'sac_publisher')) {
+			$this->_package->setPublisher($this->_context->getLocalizedName());
+		}
+
+		if($swordPlugin->getSetting($this->_context->getId(), 'sac_dateavailable')) {
+			$this->_package->setDateAvailable($publication->getData('datePublished'));
+		}
+		if($swordPlugin->getSetting($this->_context->getId(), 'sac_language')) {
+			$this->_package->setLanguage($publication->getData('locale'));
+		}
+		
+		if($swordPlugin->getSetting($this->_context->getId(), 'sac_subjects')) {
+			$currentLocale = $this->_context->getPrimaryLocale();
+			$keywordsAllLanguages = $publication->getData('keywords');
+
+			// Verificamos si existen keywords para el idioma actual
+			if (!empty($keywordsAllLanguages[$currentLocale])) {
+				foreach ($keywordsAllLanguages[$currentLocale] as $keyword) {
+					$this->_package->addSubject($keyword);
+				}
 			}
 		}
 
 		// Add rights statement
-		$licenseUrl = $publication->getData('licenseUrl') 
-           ?: $this->_context->getData('licenseUrl');
-		if ($licenseUrl) {
-			$this->_package->addRights($licenseUrl);
-		}
+		if ($swordPlugin->getSetting($this->_context->getId(), 'sac_rights')) {
 
-		$copyrightHolder = $publication->getLocalizedData('copyrightHolder');
-		if ($copyrightHolder) {
-			$this->_package->setCopyrightHolder($copyrightHolder);
-		}
-
-		$this->_package->addProvenance(
-			'Deposited from OJS ' . $this->_context->getLocalizedName() 
-			. ' on ' . date('Y-m-d')
-		);
-
-		$status = $this->_submission->getStatus() ?? 'Unknown';
-		$this->_package->setStatusStatement($status);
-
-
-		// Resolver el issue de la publicación
-		$issueId = $publication->getData('issueId');
-		$issue = $issueId ? Repo::issue()->get($issueId) : null;
-		$citation = $this->_context->getLocalizedName();
-		if ($issue) {
-			if ($issue->getVolume()) {
-				$citation .= ', Vol. ' . $issue->getVolume();
-			}
-			if ($issue->getNumber()) {
-				$citation .= ' No. ' . $issue->getNumber();
-			}
-			if ($issue->getYear()) {
-				$citation .= ' (' . $issue->getYear() . ')';
+			$licenseUrl = $publication->getData('licenseUrl') ?: $this->_context->getData('licenseUrl');
+			if ($licenseUrl) {
+				$this->_package->addRights($licenseUrl);
 			}
 		}
-		$pages = $publication->getData('pages');
-		if ($pages) {
-			$citation .= ', pp. ' . $pages;
+
+		if($swordPlugin->getSetting($this->_context->getId(), 'sac_copyrightholder')) {
+			$copyrightHolder = $publication->getLocalizedData('copyrightHolder');
+			if ($copyrightHolder) {
+				$this->_package->setCopyrightHolder($copyrightHolder);
+			}
 		}
-		$doiObject = $publication->getData('doiObject');
-		if ($doiObject) {
-			$citation .= '. https://doi.org/' . $doiObject->getDoi();
+
+		if($swordPlugin->getSetting($this->_context->getId(), 'sac_provenance')) {
+			$this->_package->addProvenance(
+				'Deposited from OJS ' . $this->_context->getLocalizedName() 
+				. ' on ' . date('Y-m-d')
+			);
 		}
-		$this->_package->setCitation($citation);
+
+		if($swordPlugin->getSetting($this->_context->getId(), 'sac_statusstatement')) {
+			$status = $this->_submission->getStatus() ?? 'Unknown';
+			$this->_package->setStatusStatement($status);
+		}
+
+		if($swordPlugin->getSetting($this->_context->getId(), 'sac_citation')) {	
+			// Resolver el issue de la publicación
+			$issueId = $publication->getData('issueId');
+			$issue = $issueId ? Repo::issue()->get($issueId) : null;
+			$citation = $this->_context->getLocalizedName();
+			if ($issue) {
+				if ($issue->getVolume()) {
+					$citation .= ', Vol. ' . $issue->getVolume();
+				}
+				if ($issue->getNumber()) {
+					$citation .= ' No. ' . $issue->getNumber();
+				}
+				if ($issue->getYear()) {
+					$citation .= ' (' . $issue->getYear() . ')';
+				}
+			}
+			$pages = $publication->getData('pages');
+			if ($pages) {
+				$citation .= ', pp. ' . $pages;
+			}
+			$doiObject = $publication->getData('doiObject');
+			if ($doiObject) {
+				$citation .= '. https://doi.org/' . $doiObject->getDoi();
+			}
+			$this->_package->setCitation($citation);
+		}
 
 	}
 

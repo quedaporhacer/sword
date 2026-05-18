@@ -35,6 +35,22 @@
 			{fbvElement type="checkbox" id="allowAuthorSpecify" value="1" checked=$allowAuthorSpecify label="plugins.generic.sword.settings.allowAuthorSpecify"}
 			{fbvElement type="checkbox" id="showDepositButton" value="1" checked=$showDepositButton label="plugins.generic.sword.settings.showDepositButton"}
 			{fbvElement type="checkbox" id="showDepositButtonPublishedOnly" value="1" checked=$showDepositButtonPublishedOnly label="plugins.generic.sword.settings.showDepositButtonPublishedOnly" disabled=!$showDepositButton}
+			
+			{fbvElement type="checkbox" id="sac_identifier" value="1" checked=$sac_identifier label="plugins.generic.sword.settings.sac_identifier"}
+			{fbvElement type="checkbox" id="sac_title" value="1" checked=$sac_title label="plugins.generic.sword.settings.sac_title"}
+			{fbvElement type="checkbox" id="sac_abstract" value="1" checked=$sac_abstract label="plugins.generic.sword.settings.sac_abstract"}
+			{fbvElement type="checkbox" id="sac_type" value="1" checked=$sac_type label="plugins.generic.sword.settings.sac_type"}
+			{fbvElement type="checkbox" id="sac_custodian" value="1" checked=$sac_custodian label="plugins.generic.sword.settings.sac_custodian"}
+			{fbvElement type="checkbox" id="sac_identifier" value="1" checked=$sac_identifier label="plugins.generic.sword.settings.sac_identifier"}
+			{fbvElement type="checkbox" id="sac_dateavailable" value="1" checked=$sac_dateavailable label="plugins.generic.sword.settings.sac_dateavailable"}
+			{fbvElement type="checkbox" id="sac_language" value="1" checked=$sac_language label="plugins.generic.sword.settings.sac_language"}
+			{fbvElement type="checkbox" id="sac_publisher" value="1" checked=$sac_publisher label="plugins.generic.sword.settings.sac_publisher"}
+			{fbvElement type="checkbox" id="sac_subjects" value="1" checked=$sac_subjects label="plugins.generic.sword.settings.sac_subjects"}
+			{fbvElement type="checkbox" id="sac_rights" value="1" checked=$sac_rights label="plugins.generic.sword.settings.sac_rights"}
+			{fbvElement type="checkbox" id="sac_copyrightholder" value="1" checked=$sac_copyrightholder label="plugins.generic.sword.settings.sac_copyrightholder"}
+			{fbvElement type="checkbox" id="sac_citation" value="1" checked=$sac_citation label="plugins.generic.sword.settings.sac_citation"}
+			{fbvElement type="checkbox" id="sac_statusstatement" value="1" checked=$sac_statusstatement label="plugins.generic.sword.settings.sac_statusstatement"}
+
 		{/fbvFormSection}
 	{/fbvFormArea}
 

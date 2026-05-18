@@ -85,8 +85,10 @@ class AuthorDepositForm extends Form {
 		parent::execute(...$functionArgs);
 		$request = $functionArgs[0];
 
+
 		$deposit = new PKPSwordDeposit($this->_submission);
-		$deposit->setMetadata($request);
+		$deposit->setMetadata($request, $this->getSwordPlugin());
+
 		$deposit->addEditorial();
 		$deposit->createPackage();
 
