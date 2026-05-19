@@ -22,6 +22,7 @@ use APP\submission\Submission;
 use APP\template\TemplateManager;
 use PKP\context\Context;
 use PKP\db\DAORegistry;
+use GuzzleHttp\Client;
 
 class AuthorDepositForm extends Form {
 	/** @var Context $_context */
@@ -157,9 +158,68 @@ class AuthorDepositForm extends Form {
 					$depositPoint->getSwordPassword(),
 					$depositPoint->getSwordApikey()
 				);
-				$list[$depositPoint->getId()]['depositPoints'] = $collections;
+
+				$enrichedCollections = [];
+               // Dentro de tu método, reemplaza la línea del error por:
+				$httpClient = new \GuzzleHttp\Client([
+					'allow_redirects' => true, // Crucial para que siga el 302 del endpoint /pid/find
+					'timeout'         => 5.0,  // Evita que OJS se quede colgado si DSpace no responde rápido
+				]);
+                // Definir la URL base de la API REST de tu DSpace 9 (ej: de una config o hardcodeada para probar)
+                $baseUrlDSpaceRest = "https://staging.sedici.unlp.edu.ar/server/api";
+
+				foreach ($collections as $url => $title) {
+                    // 1. Extraer el handle de la URL de SWORD (ej: de '.../swordv2/collection/10915/49140' sacás '10915/49140')
+                    $handle = $this->_extractHandleFromSwordUrl($url); 
+                    
+                    $communityName = 'Sin Comunidad Asociada'; // Valor por defecto
+
+                    if ($handle) {
+                        try {
+                            // 2. Traducir Handle -> UUID usando el endpoint PID de DSpace 9
+                            $pidUrl = $baseUrlDSpaceRest . "/pid/find?id=" . urlencode($handle);
+                            $pidResponse = $httpClient->get($pidUrl);
+
+                            if ($pidResponse->getStatusCode() === 200) {
+                                $pidData = json_decode($pidResponse->getBody(), true);
+                                $collectionUuid = $pidData['uuid'] ?? null;
+
+                                // 3. Si encontramos el UUID, le pedimos la Comunidad Madre a la API REST
+                                if ($collectionUuid) {
+                                    $communityUrl = $baseUrlDSpaceRest . "/core/collections/" . $collectionUuid . "/parentCommunity";
+                                    $commResponse = $httpClient->get($communityUrl);
+
+                                    if ($commResponse->getStatusCode() === 200) {
+                                        $commData = json_decode($commResponse->getBody(), true);
+                                        // DSpace 9 expone el nombre directamente en la propiedad 'name'
+                                        $communityName = $commData['name'] ?? 'Comunidad sin título';
+                                    }
+                                }
+                            }
+                        } catch (\Exception $e) {
+                            // Si cae el DSpace o la API cambia, logueamos pero NO rompemos la pantalla de OJS
+                            error_log("Error en integración REST DSpace 9 para el handle {$handle}: " . $e->getMessage());
+                        }
+                    }
+
+                    // 4. Enriquecemos el nodo de la colección inyectando el nombre de la comunidad
+                    $enrichedCollections[$url] = "[" . $communityName . "] " . $title;
+                }
+
+				$list[$depositPoint->getId()]['depositPoints'] = $enrichedCollections;
 			}
+
+
+
 		}
 		return $list;
+	}
+
+	private function _extractHandleFromSwordUrl($url) {
+		// Busca patrones tipo '123456789/123' al final de la URL de SWORD
+		if (preg_match('/collection\/([^\/]+\/[^\/]+)$/', $url, $matches)) {
+			return $matches[1];
+		}
+		return null;
 	}
 }
